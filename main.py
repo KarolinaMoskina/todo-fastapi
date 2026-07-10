@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 import uuid
 
-from app.database import get_session, init_db, kill_engine
+from app.database import get_session, kill_engine
 from app import crud
 from app.schemas import TaskCreate, UpdateTask
 from contextlib import asynccontextmanager
