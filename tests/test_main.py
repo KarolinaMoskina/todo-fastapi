@@ -13,7 +13,7 @@ async def test_index_page(client):
     """Test 1: Verify that the index page opens successfully."""
     response = await client.get("/")
     assert response.status_code == 200
-    assert "Task List" in response.text
+    assert "Tasks" in response.text
 
 @pytest.mark.asyncio
 async def test_add_task_redirect(client):
