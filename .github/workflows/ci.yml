@@ -32,7 +32,7 @@ jobs:
       run: ruff check app main.py
 
     - name: Run Tests (PyTest)
-      run: pytest app/tests/test_main.py -v
+      run: pytest tests/test_main.py -v
 
   build-and-push:
     needs: lint-and-test
