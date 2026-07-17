@@ -13,19 +13,15 @@ jobs:
       - name: Download code from GitHub
         uses: actions/checkout@v3
 
-      - name: Download and install Terraform manually
+      - name: Download and install Terraform from GitHub releases
         run: |
           New-Item -ItemType Directory -Force -Path C:\terraform
           cd C:\terraform
-          
-          Invoke-WebRequest -Uri "https://releases.hashicorp.com/terraform/1.6.0/terraform_1.6.0_windows_amd64.zip" -OutFile terraform.zip
-          
+          Invoke-WebRequest -Uri "https://github.com/hashicorp/terraform/releases/download/v1.6.0/terraform_1.6.0_windows_amd64.zip" -OutFile terraform.zip
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           [System.IO.Compression.ZipFile]::ExtractToDirectory("terraform.zip", ".")
-          
           $env:Path = "C:\terraform;$env:Path"
           [Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "Machine") + ";C:\terraform", "Machine")
-          
           terraform --version
 
       - name: Initialize Terraform
