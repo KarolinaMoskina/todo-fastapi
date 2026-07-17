@@ -13,10 +13,18 @@ jobs:
       - name: Download code from GitHub
         uses: actions/checkout@v3
 
-      - name: Install Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.6.0
+      - name: Install Chocolatey
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+      - name: Install Terraform via Chocolatey
+        run: |
+          choco install terraform -y --version=1.6.0
+
+      - name: Check Terraform version
+        run: terraform --version
 
       - name: Initialize Terraform
         run: |
