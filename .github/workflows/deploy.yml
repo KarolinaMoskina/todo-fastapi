@@ -1,0 +1,32 @@
+name: Deploy to local server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Download code from GitHub
+        uses: actions/checkout@v3
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.0
+
+      - name: Initialize Terraform
+        run: |
+          cd infra
+          terraform init
+
+      - name: Deploy infrastructure
+        run: |
+          cd infra
+          terraform apply -auto-approve
+
+      - name: Done
+        run: echo "App is running at http://localhost:8001"
