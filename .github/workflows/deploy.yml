@@ -13,8 +13,10 @@ jobs:
       - name: Download code from GitHub
         uses: actions/checkout@v3
 
-      - name: Clean up old Docker network
+      - name: Clean up old containers and network
         run: |
+          docker stop todo_app todo_db 2>$null
+          docker rm todo_app todo_db 2>$null
           docker network rm todo_network 2>$null
           docker network prune -f 2>$null
 
