@@ -16,3 +16,11 @@ venv/
 # Тесты и кэш
 .pytest_cache/
 .pytest/
+
+*.tfstate
+*.tfstate.*
+.terraform/
+terraform.tfvars
+
+*.log
+*.backup
