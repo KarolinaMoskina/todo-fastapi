@@ -11,6 +11,9 @@ provider "docker" {}
 
 resource "docker_network" "private_network" {
   name = "todo_network"
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "docker_volume" "db_volume" {
