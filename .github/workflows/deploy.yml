@@ -19,12 +19,18 @@ jobs:
       - name: Initialize Terraform
         run: |
           cd infra
-          C:\terraform\terraform.exe init
+          $env:TF_PLUGIN_CACHE_DIR = ""
+          $env:CHECKPOINT_DISABLE = "1"
+          C:\terraform\terraform.exe init -plugin-dir="C:\terraform\plugins" -reconfigure
+        shell: pwsh
 
       - name: Deploy infrastructure
         run: |
           cd infra
+          $env:TF_PLUGIN_CACHE_DIR = ""
+          $env:CHECKPOINT_DISABLE = "1"
           C:\terraform\terraform.exe apply -auto-approve
+        shell: pwsh
 
       - name: Done
         run: echo "App is running at http://localhost:8001"
