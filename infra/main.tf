@@ -5,10 +5,6 @@ terraform {
       version = "~> 3.0.1"
     }
   }
-
-  provider_meta "docker" {
-    module_name = "kreuzwerker/docker"
-  }
 }
 
 provider "docker" {}
