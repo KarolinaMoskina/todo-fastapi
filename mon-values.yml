@@ -1,0 +1,4 @@
+kubelet:
+  enabled: true
+  serviceMonitor:
+    insecureSkipVerify: true
