@@ -9,6 +9,7 @@ async def create_task(session: AsyncSession, data: TaskCreate) -> Task:
     task = Task(title=data.title, description=data.description)
     session.add(task)
     await session.flush()
+    await session.commit()
     await session.refresh(task)
     return task
 
@@ -33,6 +34,7 @@ async def updated_task(session: AsyncSession, task_id: uuid.UUID, data: UpdateTa
         setattr(task, field, value)
 
     await session.flush()
+    await session.commit()
     await session.refresh(task)
     return task
 
@@ -42,4 +44,5 @@ async def delete_task(session: AsyncSession, task_id: uuid.UUID) -> bool:
         return False
     await session.delete(task)
     await session.flush()
+    await session.commit()
     return True

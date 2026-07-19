@@ -1,16 +1,24 @@
+import logging
+import uuid
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Depends, Form, Request, HTTPException, status
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-import uuid
 
 from app.database import get_session, kill_engine
 from app import crud
 from app.schemas import TaskCreate, UpdateTask
-from contextlib import asynccontextmanager
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    force=True 
+)
+logger = logging.getLogger("todo_app")
 
 app = FastAPI(title="TODO_list")
-
 templates = Jinja2Templates(directory=".")
 
 HTML_TEMPLATE = """
@@ -39,7 +47,6 @@ HTML_TEMPLATE = """
                 <input type="text" name="description" class="form-control form-control-sm" placeholder="Description (optional)">
             </form>
             {% else %}
-            
             <form action="/edit/{{ edit_task.id }}" method="post" class="mb-4 p-3 bg-light border rounded">
                 <h5 class="text-secondary mb-3">Edit tasks</h5>
                 <div class="mb-2">
@@ -87,53 +94,49 @@ HTML_TEMPLATE = """
 @app.get("/", response_class=HTMLResponse)
 async def index_page(request: Request, edit_id: uuid.UUID = None, db: AsyncSession = Depends(get_session)):
     tasks = await crud.list_tasks(db)
-    
     edit_task = None
     if edit_id:
         edit_task = await crud.get_task(db, edit_id)
         if not edit_task:
+            logger.warning(f"Task {edit_id} not found for edit")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-        
-    return templates.env.from_string(HTML_TEMPLATE).render(
-        request=request, 
-        tasks=tasks, 
-        edit_task=edit_task
-    )
+    return templates.env.from_string(HTML_TEMPLATE).render(request=request, tasks=tasks, edit_task=edit_task)
 
 @app.post("/add")
 async def add_task(title: str = Form(...), description: str = Form(None), db: AsyncSession = Depends(get_session)):
     task_data = TaskCreate(title=title, description=description if description else None)
     await crud.create_task(db, task_data)
+    logger.info(f"Task added: {title}")
     return RedirectResponse(url="/", status_code=303)
 
 @app.post("/edit/{task_id}")
 async def edit_task_submit(task_id: uuid.UUID, title: str = Form(...), description: str = Form(None), db: AsyncSession = Depends(get_session)):
     update_data = UpdateTask(title=title, description=description if description else None)
     updated = await crud.updated_task(db, task_id, update_data)
-    
     if not updated:
+        logger.warning(f"Failed edit: task {task_id} not found")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task to modify not found")
-        
+    logger.info(f"Task edited: {task_id}")
     return RedirectResponse(url="/", status_code=303)
 
 @app.get("/toggle/{task_id}")
 async def toggle_task(task_id: uuid.UUID, db: AsyncSession = Depends(get_session)):
     task = await crud.get_task(db, task_id)
-    
     if not task:
+        logger.warning(f"Failed toggle: task {task_id} not found")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-        
     update_data = UpdateTask(completed=not task.completed)
     await crud.updated_task(db, task_id, update_data)
+    logger.info(f"Task toggled: {task_id}")
     return RedirectResponse(url="/", status_code=303)
 
 @app.get("/delete/{task_id}")
 async def delete_task(task_id: uuid.UUID, db: AsyncSession = Depends(get_session)):
     deleted = await crud.delete_task(db, task_id)
-    
     if not deleted:
+        logger.warning(f"Failed delete: task {task_id} not found")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task to delete not found")
-        
+    logger.info(f"Task deleted: {task_id}")
     return RedirectResponse(url="/", status_code=303)
 
 @asynccontextmanager
