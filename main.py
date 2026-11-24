@@ -2,23 +2,27 @@ import logging
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Depends, Form, Request, HTTPException, status
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi import Depends, Form, HTTPException, Request, status
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_session, kill_engine
 from app import crud
+from app.database import get_session, kill_engine
 from app.schemas import TaskCreate, UpdateTask
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    force=True 
+    force=True,
 )
 logger = logging.getLogger("todo_app")
 
-app = FastAPI(title="TODO_list")
+app_title = "TODO_list"
+
+from fastapi import FastAPI
+
+app = FastAPI(title=app_title)
 templates = Jinja2Templates(directory=".")
 
 HTML_TEMPLATE = """
@@ -29,7 +33,7 @@ HTML_TEMPLATE = """
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <style>
         body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .todo-container { max-width: 650px; margin: 50px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .todo-container { max-width: 720px; margin: 50px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
         .completed-task { text-decoration: line-through; color: #6c757d; }
     </style>
 </head>
@@ -37,7 +41,7 @@ HTML_TEMPLATE = """
     <div class="container">
         <div class="todo-container">
             <h2 class="text-center mb-4 text-primary">Tasks</h2>
-            
+
             {% if not edit_task %}
             <form action="/add" method="post" class="mb-4">
                 <div class="input-group mb-2">
@@ -63,13 +67,20 @@ HTML_TEMPLATE = """
             {% endif %}
 
             <ul class="list-group">
-                {% for task in tasks %}
+                {% for item in tasks_view %}
+                {% set task = item.task %}
                 <li class="list-group-item d-flex justify-content-between align-items-center {% if task.completed %}list-group-item-light{% endif %}">
                     <div>
                         <span class="fw-bold {% if task.completed %}completed-task{% endif %}">{{ task.title }}</span>
+                        {% if item.is_valid %}
+                            <span class="badge bg-success ms-2">Signature OK</span>
+                        {% else %}
+                            <span class="badge bg-danger ms-2">Signature INVALID</span>
+                        {% endif %}
                         {% if task.description %}
                             <br><small class="text-muted">{{ task.description }}</small>
                         {% endif %}
+                        <br><small class="text-muted">ID: {{ task.id }}</small>
                     </div>
                     <div class="btn-group btn-group-sm">
                         {% if not task.completed %}
@@ -91,26 +102,64 @@ HTML_TEMPLATE = """
 </html>
 """
 
+
 @app.get("/", response_class=HTMLResponse)
-async def index_page(request: Request, edit_id: uuid.UUID = None, db: AsyncSession = Depends(get_session)):
+async def index_page(
+    request: Request,
+    edit_id: uuid.UUID = None,
+    db: AsyncSession = Depends(get_session),
+):
     tasks = await crud.list_tasks(db)
+    tasks_view = [
+        {"task": t, "is_valid": crud.verify_task_integrity(t)}
+        for t in tasks
+    ]
     edit_task = None
     if edit_id:
         edit_task = await crud.get_task(db, edit_id)
         if not edit_task:
             logger.warning(f"Task {edit_id} not found for edit")
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    return templates.env.from_string(HTML_TEMPLATE).render(request=request, tasks=tasks, edit_task=edit_task)
+    return templates.env.from_string(HTML_TEMPLATE).render(
+        request=request,
+        tasks_view=tasks_view,
+        edit_task=edit_task,
+    )
+
+
+@app.get("/api/tasks/{task_id}/verify")
+async def verify_task_endpoint(task_id: uuid.UUID, db: AsyncSession = Depends(get_session)):
+    task = await crud.get_task(db, task_id)
+    if not task:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    is_valid = crud.verify_task_integrity(task)
+    return {
+        "task_id": str(task.id),
+        "title": task.title,
+        "completed": task.completed,
+        "is_signature_valid": is_valid,
+    }
+
 
 @app.post("/add")
-async def add_task(title: str = Form(...), description: str = Form(None), db: AsyncSession = Depends(get_session)):
+async def add_task(
+    title: str = Form(...),
+    description: str = Form(None),
+    db: AsyncSession = Depends(get_session),
+):
     task_data = TaskCreate(title=title, description=description if description else None)
     await crud.create_task(db, task_data)
     logger.info(f"Task added: {title}")
     return RedirectResponse(url="/", status_code=303)
 
+
 @app.post("/edit/{task_id}")
-async def edit_task_submit(task_id: uuid.UUID, title: str = Form(...), description: str = Form(None), db: AsyncSession = Depends(get_session)):
+async def edit_task_submit(
+    task_id: uuid.UUID,
+    title: str = Form(...),
+    description: str = Form(None),
+    db: AsyncSession = Depends(get_session),
+):
     update_data = UpdateTask(title=title, description=description if description else None)
     updated = await crud.updated_task(db, task_id, update_data)
     if not updated:
@@ -118,6 +167,7 @@ async def edit_task_submit(task_id: uuid.UUID, title: str = Form(...), descripti
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task to modify not found")
     logger.info(f"Task edited: {task_id}")
     return RedirectResponse(url="/", status_code=303)
+
 
 @app.get("/toggle/{task_id}")
 async def toggle_task(task_id: uuid.UUID, db: AsyncSession = Depends(get_session)):
@@ -130,6 +180,7 @@ async def toggle_task(task_id: uuid.UUID, db: AsyncSession = Depends(get_session
     logger.info(f"Task toggled: {task_id}")
     return RedirectResponse(url="/", status_code=303)
 
+
 @app.get("/delete/{task_id}")
 async def delete_task(task_id: uuid.UUID, db: AsyncSession = Depends(get_session)):
     deleted = await crud.delete_task(db, task_id)
@@ -139,9 +190,11 @@ async def delete_task(task_id: uuid.UUID, db: AsyncSession = Depends(get_session
     logger.info(f"Task deleted: {task_id}")
     return RedirectResponse(url="/", status_code=303)
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
     await kill_engine()
+
 
 app.router.lifespan_context = lifespan
